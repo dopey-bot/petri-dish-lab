@@ -41,7 +41,7 @@
         // --- 1. INITIALIZE SUPABASE ---
         const SUPABASE_URL = 'https://zdsejflxtilybqdogcyq.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_wpKaS7oeS9GUTO4xHhymDQ_fK-v-1fk';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         // --- 2. APP LOGIC ---
         const canvas = document.getElementById('heatmap');
@@ -74,10 +74,10 @@
             const yPercent = y / ch;
 
             // 2. SEND to Supabase instantly (Save the Tap)
-            await supabase.from('global_taps').insert([{ x_percent: xPercent, y_percent: yPercent }]);
+            await db.from('global_taps').insert([{ x_percent: xPercent, y_percent: yPercent }]);
 
             // 3. FETCH the world's taps from Supabase (Read the Taps)
-            const { data: globalTaps } = await supabase
+            const { data: globalTaps } = await db
                 .from('global_taps')
                 .select('x_percent, y_percent')
                 .limit(2000)
