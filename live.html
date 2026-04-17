@@ -125,7 +125,7 @@
         // --- 6. BACKGROUND PRUNING ---
         // Every 60 seconds, this silently checks if any dots have outlived their lifespan and removes them
         setInterval(() => {
-            const cutoff = Date.now() - (LIFESPAN_MINUTES * 60 * 1000);
+            const cutoff = Date.now() - (LIFESPAN_MINUTES * 5 * 1000);
             const originalLength = activeTaps.length;
             
             activeTaps = activeTaps.filter(tap => tap.timestamp >= cutoff);
