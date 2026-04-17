@@ -50,12 +50,6 @@
         let hasTapped = false;
         let cw, ch;
 
-        // The Paid Viruses (Static for now until we build the payment system)
-        const dominantClusters = [
-            { name: "The Dead Center Bias", color: "#f43f5e", px: 0.52, py: 0.55, radius: 120 },
-            { name: "The Right-Thumb Drift", color: "#10b981", px: 0.80, py: 0.70, radius: 80 }
-        ];
-
         function resizeCanvas() {
             cw = canvas.width = window.innerWidth;
             ch = canvas.height = window.innerHeight;
@@ -73,55 +67,35 @@
             const xPercent = x / cw;
             const yPercent = y / ch;
 
-            // 2. SEND to Supabase instantly (Save the Tap)
+            // 2. SEND to Supabase instantly
             await db.from('global_taps').insert([{ x_percent: xPercent, y_percent: yPercent }]);
 
-            // 3. FETCH the world's taps from Supabase (Read the Taps)
+            // 3. FETCH the world's taps from Supabase
             const { data: globalTaps } = await db
                 .from('global_taps')
                 .select('x_percent, y_percent')
                 .limit(2000)
                 .order('created_at', { ascending: false });
 
-            // 4. Draw everything
+            // 4. Draw the REAL heatmap
             if (globalTaps) drawRealHeatmap(globalTaps);
-            drawClusters();
             
-            let trappedIn = checkCluster(x, y);
-            drawUserTap(x, y, trappedIn ? trappedIn.color : '#38bdf8');
+            // Draw the user's tap
+            drawUserTap(x, y, '#38bdf8');
             canvas.style.opacity = '1';
             
-            calculateResults(x, y, trappedIn);
+            calculateResults(x, y);
         }
 
-        // Draw the real data from the database
         function drawRealHeatmap(taps) {
             taps.forEach(tap => {
                 let rx = tap.x_percent * cw;
                 let ry = tap.y_percent * ch;
                 ctx.beginPath();
-                ctx.arc(rx, ry, 2, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(56, 189, 248, 0.15)'; // Slightly brighter real dots
+                ctx.arc(rx, ry, 3, 0, Math.PI * 2); // Slightly larger dots so they are easy to see
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.4)'; // Brighter blue
                 ctx.fill();
             });
-        }
-
-        function drawClusters() {
-            dominantClusters.forEach(cluster => {
-                let sx = cluster.px * cw; let sy = cluster.py * ch;
-                let gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, cluster.radius);
-                gradient.addColorStop(0, cluster.color + '44'); gradient.addColorStop(1, 'transparent');
-                ctx.beginPath(); ctx.arc(sx, sy, cluster.radius, 0, Math.PI * 2); ctx.fillStyle = gradient; ctx.fill();
-                ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fillStyle = cluster.color; ctx.fill();
-            });
-        }
-
-        function checkCluster(x, y) {
-            for (let cluster of dominantClusters) {
-                let distance = Math.hypot(x - (cluster.px * cw), y - (cluster.py * ch));
-                if (distance <= cluster.radius) return cluster;
-            }
-            return null;
         }
 
         function drawUserTap(x, y, color) {
@@ -129,7 +103,7 @@
             ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
         }
 
-        function calculateResults(x, y, trappedIn) {
+        function calculateResults(x, y) {
             const centerX = cw / 2; const centerY = ch / 2;
             const distance = Math.hypot(x - centerX, y - centerY);
             const maxDistance = Math.hypot(centerX, centerY);
@@ -146,13 +120,9 @@
                 else diagP.innerText = "The Rebel. You actively tried to outsmart the test.";
 
                 const banner = document.getElementById('cluster-banner');
-                if (trappedIn) {
-                    banner.style.color = trappedIn.color; banner.style.border = `1px solid ${trappedIn.color}`;
-                    banner.innerHTML = `⚠️ YOU FELL INTO A PREDICTABLE TRAP:<br><span style="font-size:1.2rem;">"${trappedIn.name}"</span>`;
-                } else {
-                    banner.style.color = '#38bdf8'; banner.style.border = '1px solid #38bdf8';
-                    banner.innerText = "🌐 You avoided the major psychological hotzones.";
-                }
+                banner.style.color = '#38bdf8'; 
+                banner.style.border = '1px solid #38bdf8';
+                banner.innerText = "🌐 Your tap has been permanently added to the global lab.";
             }, 1200);
         }
     </script>
