@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>The Petri Dish | Global Randomness Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            user-select: none;
+        }
+
+        body, html {
+            height: 100%;
+            width: 100%;
+            background-color: #0b0f19; /* Deep lab slate */
+            color: #f8fafc;
+            overflow: hidden;
+        }
+
+        #app {
+            position: relative;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: crosshair;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+            opacity: 0;
+            transition: opacity 1s ease-in-out;
+        }
+
+        #ui-layer {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            pointer-events: none;
+            width: 100%;
+            padding: 20px;
+        }
+
+        h1 {
+            font-size: 3rem;
+            font-weight: 300;
+            letter-spacing: 2px;
+            margin-bottom: 10px;
+            text-shadow: 0 4px 20px rgba(0,0,0,0.8);
+            transition: opacity 0.3s;
+        }
+
+        .results {
+            display: none;
+            background: rgba(11, 15, 25, 0.9);
+            padding: 40px;
+            border-radius: 16px;
+            border: 1px solid #1e293b;
+            backdrop-filter: blur(12px);
+            max-width: 450px;
+            margin: 0 auto;
+            pointer-events: auto; /* Re-enable clicks for the button */
+            animation: slideUp 0.8s ease forwards;
+        }
+
+        .score {
+            font-size: 3.5rem;
+            font-weight: 800;
+            color: #38bdf8; 
+            margin: 5px 0;
+        }
+
+        .diagnosis {
+            font-size: 1.1rem;
+            color: #94a3b8;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+
+        .infection-status {
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: bold;
+            margin-bottom: 25px;
+            font-size: 1rem;
+        }
+
+        /* The $1 Upsell Button */
+        .pay-button {
+            display: block;
+            width: 100%;
+            background: linear-gradient(135deg, #f43f5e, #8b5cf6);
+            color: white;
+            border: none;
+            padding: 18px 20px;
+            font-size: 1.2rem;
+            font-weight: 700;
+            border-radius: 12px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(244, 63, 94, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .pay-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(244, 63, 94, 0.6);
+        }
+
+        .pay-button span {
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 400;
+            opacity: 0.9;
+            margin-top: 4px;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="app">
+        <canvas id="heatmap"></canvas>
+        <div id="ui-layer">
+            <h1 id="instruction">Clear your mind.<br>Tap anywhere.</h1>
+            
+            <div id="results" class="results">
+                <div class="diagnosis" style="font-size:0.9rem; text-transform:uppercase; letter-spacing:1px;">Predictability Score</div>
+                <div class="score"><span id="percentage">0</span>%</div>
+                <p id="diagnosis" class="diagnosis">Analyzing spatial bias...</p>
+                
+                <div id="infection-banner" class="infection-status" style="background: rgba(255,255,255,0.05); color: #fff;">
+                    Checking infection status...
+                </div>
+
+                <button class="pay-button" onclick="alert('Redirecting to Stripe checkout...')">
+                    Become Patient Zero - $1.00
+                    <span>Start your own strain. Track your spread.</span>
+                </button>
+                <p style="margin-top: 15px; font-size: 0.8rem; color: #64748b; cursor: pointer;" onclick="location.reload()">Tap here to reset lab</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('heatmap');
+        const ctx = canvas.getContext('2d');
+        const app = document.getElementById('app');
+        const instruction = document.getElementById('instruction');
+        const results = document.getElementById('results');
+        const percentageSpan = document.getElementById('percentage');
+        const diagnosisP = document.getElementById('diagnosis');
+        const infectionBanner = document.getElementById('infection-banner');
+
+        let hasTapped = false;
+        let cw, ch;
+
+        // Simulated Database of "Patient Zeros" who paid $1
+        // px/py are percentages of screen width/height so it scales to any device
+        const activeStrains = [
+            { name: "The Center Bias", color: "#f43f5e", px: 0.52, py: 0.55, radius: 120 }, // Neon Pink
+            { name: "Thumb-Drift Variant", color: "#10b981", px: 0.80, py: 0.70, radius: 80 }   // Acid Green
+        ];
+
+        function resizeCanvas() {
+            cw = canvas.width = window.innerWidth;
+            ch = canvas.height = window.innerHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        app.addEventListener('click', (e) => {
+            if (hasTapped) return;
+            hasTapped = true;
+            processTap(e.clientX, e.clientY);
+        });
+
+        app.addEventListener('touchstart', (e) => {
+            if (hasTapped) return;
+            hasTapped = true;
+            processTap(e.touches[0].clientX, e.touches[0].clientY);
+        });
+
+        function processTap(x, y) {
+            instruction.style.opacity = '0';
+            drawBackgroundNoise();
+            drawStrains();
+            
+            // Check if the user's tap was swallowed by a virus
+            let infectedBy = checkInfection(x, y);
+            
+            drawUserTap(x, y, infectedBy ? infectedBy.color : '#38bdf8');
+            canvas.style.opacity = '1';
+            
+            calculateResults(x, y, infectedBy);
+        }
+
+        // Draw normal free users (faint blue dots)
+        function drawBackgroundNoise() {
+            for (let i = 0; i < 1500; i++) {
+                let rx = cw * 0.5 + (randomGaussian() * cw * 0.25) + (cw * 0.05);
+                let ry = ch * 0.5 + (randomGaussian() * ch * 0.25) + (ch * 0.05);
+                
+                ctx.beginPath();
+                ctx.arc(rx, ry, 2, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+                ctx.fill();
+            }
+        }
+
+        // Draw the massive, paid virus zones
+        function drawStrains() {
+            activeStrains.forEach(strain => {
+                let sx = strain.px * cw;
+                let sy = strain.py * ch;
+
+                // Infection Aura (Glow)
+                let gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, strain.radius);
+                gradient.addColorStop(0, strain.color + '44'); // 44 is hex opacity
+                gradient.addColorStop(1, 'transparent');
+
+                ctx.beginPath();
+                ctx.arc(sx, sy, strain.radius, 0, Math.PI * 2);
+                ctx.fillStyle = gradient;
+                ctx.fill();
+
+                // Core Node
+                ctx.beginPath();
+                ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+                ctx.fillStyle = strain.color;
+                ctx.fill();
+            });
+        }
+
+        function checkInfection(x, y) {
+            for (let strain of activeStrains) {
+                let sx = strain.px * cw;
+                let sy = strain.py * ch;
+                let distance = Math.hypot(x - sx, y - sy);
+                
+                if (distance <= strain.radius) {
+                    return strain; // User tapped inside the infection zone!
+                }
+            }
+            return null; // User is safe
+        }
+
+        function drawUserTap(x, y, color) {
+            // Pulse ring
+            ctx.beginPath();
+            ctx.arc(x, y, 25, 0, Math.PI * 2);
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Core dot
+            ctx.beginPath();
+            ctx.arc(x, y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = color;
+            ctx.fill();
+        }
+
+        function calculateResults(x, y, infectedBy) {
+            const centerX = cw / 2;
+            const centerY = ch / 2;
+            
+            const distance = Math.hypot(x - centerX, y - centerY);
+            const maxDistance = Math.hypot(centerX, centerY);
+            
+            let predictability = 100 - ((distance / maxDistance) * 100);
+            predictability = Math.min(99.9, Math.max(45, predictability + 30));
+
+            setTimeout(() => {
+                results.style.display = 'block';
+                percentageSpan.innerText = predictability.toFixed(1);
+
+                if (predictability > 85) {
+                    diagnosisP.innerText = "You fell victim to the center-stage bias. You share a clicking profile with 42,000 others.";
+                } else {
+                    diagnosisP.innerText = "You drifted off-center, letting your dominant hand dictate your 'random' choice.";
+                }
+
+                // Handle Infection Output
+                if (infectedBy) {
+                    infectionBanner.style.background = infectedBy.color + '33'; // light background
+                    infectionBanner.style.color = infectedBy.color;
+                    infectionBanner.style.border = `1px solid ${infectedBy.color}`;
+                    infectionBanner.innerHTML = `⚠️ YOU WERE INFECTED BY:<br><span style="font-size:1.4rem;">"${infectedBy.name}"</span>`;
+                } else {
+                    infectionBanner.style.background = 'rgba(16, 185, 129, 0.1)';
+                    infectionBanner.style.color = '#10b981';
+                    infectionBanner.style.border = '1px solid #10b981';
+                    infectionBanner.innerText = "🛡️ You survived. Your tap is currently uninfected.";
+                }
+            }, 1200);
+        }
+
+        function randomGaussian() {
+            let u = 0, v = 0;
+            while(u === 0) u = Math.random();
+            while(v === 0) v = Math.random();
+            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v) / 3.0;
+        }
+    </script>
+</body>
+</html>
