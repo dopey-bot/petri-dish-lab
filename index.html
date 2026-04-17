@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Petri Dish | Global Randomness Test</title>
+    <title>The Predictability Lab | Free Will Test</title>
     <style>
         * {
             margin: 0;
@@ -88,41 +88,34 @@
             line-height: 1.5;
         }
 
-        .infection-status {
-            padding: 10px;
+        .cluster-status {
+            padding: 15px;
             border-radius: 8px;
             font-weight: bold;
             margin-bottom: 25px;
             font-size: 1rem;
+            background: rgba(255,255,255,0.05);
         }
 
-        /* The $1 Upsell Button */
-        .pay-button {
+        /* Free Action Button */
+        .action-button {
             display: block;
             width: 100%;
-            background: linear-gradient(135deg, #f43f5e, #8b5cf6);
-            color: white;
-            border: none;
+            background: #1e293b;
+            color: #f8fafc;
+            border: 1px solid #334155;
             padding: 18px 20px;
-            font-size: 1.2rem;
-            font-weight: 700;
+            font-size: 1.1rem;
+            font-weight: 600;
             border-radius: 12px;
             cursor: pointer;
-            box-shadow: 0 4px 15px rgba(244, 63, 94, 0.4);
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.2s ease;
         }
 
-        .pay-button:hover {
+        .action-button:hover {
+            background: #334155;
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(244, 63, 94, 0.6);
-        }
-
-        .pay-button span {
-            display: block;
-            font-size: 0.85rem;
-            font-weight: 400;
-            opacity: 0.9;
-            margin-top: 4px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
         }
 
         @keyframes slideUp {
@@ -143,15 +136,13 @@
                 <div class="score"><span id="percentage">0</span>%</div>
                 <p id="diagnosis" class="diagnosis">Analyzing spatial bias...</p>
                 
-                <div id="infection-banner" class="infection-status" style="background: rgba(255,255,255,0.05); color: #fff;">
-                    Checking infection status...
+                <div id="cluster-banner" class="cluster-status">
+                    Checking global clusters...
                 </div>
 
-                <button class="pay-button" onclick="alert('Redirecting to Stripe checkout...')">
-                    Become Patient Zero - $1.00
-                    <span>Start your own strain. Track your spread.</span>
+                <button class="action-button" onclick="location.reload()">
+                    Reset Lab Canvas
                 </button>
-                <p style="margin-top: 15px; font-size: 0.8rem; color: #64748b; cursor: pointer;" onclick="location.reload()">Tap here to reset lab</p>
             </div>
         </div>
     </div>
@@ -164,16 +155,15 @@
         const results = document.getElementById('results');
         const percentageSpan = document.getElementById('percentage');
         const diagnosisP = document.getElementById('diagnosis');
-        const infectionBanner = document.getElementById('infection-banner');
+        const clusterBanner = document.getElementById('cluster-banner');
 
         let hasTapped = false;
         let cw, ch;
 
-        // Simulated Database of "Patient Zeros" who paid $1
-        // px/py are percentages of screen width/height so it scales to any device
-        const activeStrains = [
-            { name: "The Center Bias", color: "#f43f5e", px: 0.52, py: 0.55, radius: 120 }, // Neon Pink
-            { name: "Thumb-Drift Variant", color: "#10b981", px: 0.80, py: 0.70, radius: 80 }   // Acid Green
+        // Simulated Global Data Clusters (The "Hotzones")
+        const dominantClusters = [
+            { name: "The Dead Center Bias", color: "#f43f5e", px: 0.52, py: 0.55, radius: 120 }, // Red/Pink
+            { name: "The Right-Thumb Drift", color: "#10b981", px: 0.80, py: 0.70, radius: 80 }   // Green
         ];
 
         function resizeCanvas() {
@@ -198,18 +188,18 @@
         function processTap(x, y) {
             instruction.style.opacity = '0';
             drawBackgroundNoise();
-            drawStrains();
+            drawClusters();
             
-            // Check if the user's tap was swallowed by a virus
-            let infectedBy = checkInfection(x, y);
+            // Check if the user fell into a common psychological trap
+            let trappedIn = checkCluster(x, y);
             
-            drawUserTap(x, y, infectedBy ? infectedBy.color : '#38bdf8');
+            drawUserTap(x, y, trappedIn ? trappedIn.color : '#38bdf8');
             canvas.style.opacity = '1';
             
-            calculateResults(x, y, infectedBy);
+            calculateResults(x, y, trappedIn);
         }
 
-        // Draw normal free users (faint blue dots)
+        // Draw normal global taps (faint blue dots)
         function drawBackgroundNoise() {
             for (let i = 0; i < 1500; i++) {
                 let rx = cw * 0.5 + (randomGaussian() * cw * 0.25) + (cw * 0.05);
@@ -222,41 +212,41 @@
             }
         }
 
-        // Draw the massive, paid virus zones
-        function drawStrains() {
-            activeStrains.forEach(strain => {
-                let sx = strain.px * cw;
-                let sy = strain.py * ch;
+        // Draw the massive psychological gravity wells
+        function drawClusters() {
+            dominantClusters.forEach(cluster => {
+                let sx = cluster.px * cw;
+                let sy = cluster.py * ch;
 
-                // Infection Aura (Glow)
-                let gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, strain.radius);
-                gradient.addColorStop(0, strain.color + '44'); // 44 is hex opacity
+                // Aura (Glow)
+                let gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, cluster.radius);
+                gradient.addColorStop(0, cluster.color + '44'); // 44 is hex opacity
                 gradient.addColorStop(1, 'transparent');
 
                 ctx.beginPath();
-                ctx.arc(sx, sy, strain.radius, 0, Math.PI * 2);
+                ctx.arc(sx, sy, cluster.radius, 0, Math.PI * 2);
                 ctx.fillStyle = gradient;
                 ctx.fill();
 
                 // Core Node
                 ctx.beginPath();
                 ctx.arc(sx, sy, 5, 0, Math.PI * 2);
-                ctx.fillStyle = strain.color;
+                ctx.fillStyle = cluster.color;
                 ctx.fill();
             });
         }
 
-        function checkInfection(x, y) {
-            for (let strain of activeStrains) {
-                let sx = strain.px * cw;
-                let sy = strain.py * ch;
+        function checkCluster(x, y) {
+            for (let cluster of dominantClusters) {
+                let sx = cluster.px * cw;
+                let sy = cluster.py * ch;
                 let distance = Math.hypot(x - sx, y - sy);
                 
-                if (distance <= strain.radius) {
-                    return strain; // User tapped inside the infection zone!
+                if (distance <= cluster.radius) {
+                    return cluster; // User tapped inside a major hotzone
                 }
             }
-            return null; // User is safe
+            return null; // User tapped somewhere unique
         }
 
         function drawUserTap(x, y, color) {
@@ -274,7 +264,7 @@
             ctx.fill();
         }
 
-        function calculateResults(x, y, infectedBy) {
+        function calculateResults(x, y, trappedIn) {
             const centerX = cw / 2;
             const centerY = ch / 2;
             
@@ -282,6 +272,7 @@
             const maxDistance = Math.hypot(centerX, centerY);
             
             let predictability = 100 - ((distance / maxDistance) * 100);
+            // Math tweak to ensure natural-feeling results
             predictability = Math.min(99.9, Math.max(45, predictability + 30));
 
             setTimeout(() => {
@@ -289,26 +280,27 @@
                 percentageSpan.innerText = predictability.toFixed(1);
 
                 if (predictability > 85) {
-                    diagnosisP.innerText = "You fell victim to the center-stage bias. You share a clicking profile with 42,000 others.";
+                    diagnosisP.innerText = "You share a clicking profile with over 42,000 other subjects today. Your brain seeks the center.";
+                } else if (predictability > 60) {
+                    diagnosisP.innerText = "You drifted slightly off-center, letting your dominant hand dictate your 'random' choice.";
                 } else {
-                    diagnosisP.innerText = "You drifted off-center, letting your dominant hand dictate your 'random' choice.";
+                    diagnosisP.innerText = "The Rebel. You actively tried to outsmart the test. So did 2 million other subjects.";
                 }
 
-                // Handle Infection Output
-                if (infectedBy) {
-                    infectionBanner.style.background = infectedBy.color + '33'; // light background
-                    infectionBanner.style.color = infectedBy.color;
-                    infectionBanner.style.border = `1px solid ${infectedBy.color}`;
-                    infectionBanner.innerHTML = `⚠️ YOU WERE INFECTED BY:<br><span style="font-size:1.4rem;">"${infectedBy.name}"</span>`;
+                // Handle Cluster Output
+                if (trappedIn) {
+                    clusterBanner.style.color = trappedIn.color;
+                    clusterBanner.style.border = `1px solid ${trappedIn.color}`;
+                    clusterBanner.innerHTML = `⚠️ YOU FELL INTO A PREDICTABLE TRAP:<br><span style="font-size:1.2rem;">"${trappedIn.name}"</span>`;
                 } else {
-                    infectionBanner.style.background = 'rgba(16, 185, 129, 0.1)';
-                    infectionBanner.style.color = '#10b981';
-                    infectionBanner.style.border = '1px solid #10b981';
-                    infectionBanner.innerText = "🛡️ You survived. Your tap is currently uninfected.";
+                    clusterBanner.style.color = '#38bdf8';
+                    clusterBanner.style.border = '1px solid #38bdf8';
+                    clusterBanner.innerText = "🌐 You avoided the major psychological hotzones.";
                 }
             }, 1200);
         }
 
+        // Helper function for the background noise bell-curve
         function randomGaussian() {
             let u = 0, v = 0;
             while(u === 0) u = Math.random();
