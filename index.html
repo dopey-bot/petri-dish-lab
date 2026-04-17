@@ -3,125 +3,22 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>The Predictability Lab | Free Will Test</title>
+    <title>The Predictability Lab | Live Global Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            user-select: none;
-        }
-
-        body, html {
-            height: 100%;
-            width: 100%;
-            background-color: #0b0f19; /* Deep lab slate */
-            color: #f8fafc;
-            overflow: hidden;
-        }
-
-        #app {
-            position: relative;
-            height: 100vh;
-            width: 100vw;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            cursor: crosshair;
-        }
-
-        canvas {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 1;
-            opacity: 0;
-            transition: opacity 1s ease-in-out;
-        }
-
-        #ui-layer {
-            position: relative;
-            z-index: 10;
-            text-align: center;
-            pointer-events: none;
-            width: 100%;
-            padding: 20px;
-        }
-
-        h1 {
-            font-size: 3rem;
-            font-weight: 300;
-            letter-spacing: 2px;
-            margin-bottom: 10px;
-            text-shadow: 0 4px 20px rgba(0,0,0,0.8);
-            transition: opacity 0.3s;
-        }
-
-        .results {
-            display: none;
-            background: rgba(11, 15, 25, 0.9);
-            padding: 40px;
-            border-radius: 16px;
-            border: 1px solid #1e293b;
-            backdrop-filter: blur(12px);
-            max-width: 450px;
-            margin: 0 auto;
-            pointer-events: auto; /* Re-enable clicks for the button */
-            animation: slideUp 0.8s ease forwards;
-        }
-
-        .score {
-            font-size: 3.5rem;
-            font-weight: 800;
-            color: #38bdf8; 
-            margin: 5px 0;
-        }
-
-        .diagnosis {
-            font-size: 1.1rem;
-            color: #94a3b8;
-            margin-bottom: 15px;
-            line-height: 1.5;
-        }
-
-        .cluster-status {
-            padding: 15px;
-            border-radius: 8px;
-            font-weight: bold;
-            margin-bottom: 25px;
-            font-size: 1rem;
-            background: rgba(255,255,255,0.05);
-        }
-
-        /* Free Action Button */
-        .action-button {
-            display: block;
-            width: 100%;
-            background: #1e293b;
-            color: #f8fafc;
-            border: 1px solid #334155;
-            padding: 18px 20px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            border-radius: 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .action-button:hover {
-            background: #334155;
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-        }
-
-        @keyframes slideUp {
-            from { opacity: 0; transform: translateY(30px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, sans-serif; user-select: none; }
+        body, html { height: 100%; width: 100%; background-color: #0b0f19; color: #f8fafc; overflow: hidden; }
+        #app { position: relative; height: 100vh; width: 100vw; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: crosshair; }
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; opacity: 0; transition: opacity 1s ease; }
+        #ui-layer { position: relative; z-index: 10; text-align: center; pointer-events: none; width: 100%; padding: 20px; }
+        h1 { font-size: 3rem; font-weight: 300; letter-spacing: 2px; margin-bottom: 10px; transition: opacity 0.3s; }
+        .results { display: none; background: rgba(11, 15, 25, 0.9); padding: 40px; border-radius: 16px; border: 1px solid #1e293b; backdrop-filter: blur(12px); max-width: 450px; margin: 0 auto; pointer-events: auto; animation: slideUp 0.8s ease forwards; }
+        .score { font-size: 3.5rem; font-weight: 800; color: #38bdf8; margin: 5px 0; }
+        .diagnosis { font-size: 1.1rem; color: #94a3b8; margin-bottom: 15px; }
+        .cluster-status { padding: 15px; border-radius: 8px; font-weight: bold; margin-bottom: 25px; background: rgba(255,255,255,0.05); }
+        .action-button { display: block; width: 100%; background: #1e293b; color: #f8fafc; border: 1px solid #334155; padding: 18px 20px; font-size: 1.1rem; font-weight: 600; border-radius: 12px; cursor: pointer; transition: all 0.2s ease; }
+        .action-button:hover { background: #334155; transform: translateY(-2px); }
+        @keyframes slideUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
@@ -130,40 +27,33 @@
         <canvas id="heatmap"></canvas>
         <div id="ui-layer">
             <h1 id="instruction">Clear your mind.<br>Tap anywhere.</h1>
-            
             <div id="results" class="results">
-                <div class="diagnosis" style="font-size:0.9rem; text-transform:uppercase; letter-spacing:1px;">Predictability Score</div>
+                <div class="diagnosis" style="font-size:0.9rem; text-transform:uppercase;">Predictability Score</div>
                 <div class="score"><span id="percentage">0</span>%</div>
                 <p id="diagnosis" class="diagnosis">Analyzing spatial bias...</p>
-                
-                <div id="cluster-banner" class="cluster-status">
-                    Checking global clusters...
-                </div>
-
-                <button class="action-button" onclick="location.reload()">
-                    Reset Lab Canvas
-                </button>
+                <div id="cluster-banner" class="cluster-status">Checking global clusters...</div>
+                <button class="action-button" onclick="location.reload()">Reset Lab Canvas</button>
             </div>
         </div>
     </div>
 
     <script>
+        // --- 1. INITIALIZE SUPABASE ---
+        const SUPABASE_URL = 'https://zdsejflxtilybqdogcyq.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_wpKaS7oeS9GUTO4xHhymDQ_fK-v-1fk';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // --- 2. APP LOGIC ---
         const canvas = document.getElementById('heatmap');
         const ctx = canvas.getContext('2d');
         const app = document.getElementById('app');
-        const instruction = document.getElementById('instruction');
-        const results = document.getElementById('results');
-        const percentageSpan = document.getElementById('percentage');
-        const diagnosisP = document.getElementById('diagnosis');
-        const clusterBanner = document.getElementById('cluster-banner');
-
         let hasTapped = false;
         let cw, ch;
 
-        // Simulated Global Data Clusters (The "Hotzones")
+        // The Paid Viruses (Static for now until we build the payment system)
         const dominantClusters = [
-            { name: "The Dead Center Bias", color: "#f43f5e", px: 0.52, py: 0.55, radius: 120 }, // Red/Pink
-            { name: "The Right-Thumb Drift", color: "#10b981", px: 0.80, py: 0.70, radius: 80 }   // Green
+            { name: "The Dead Center Bias", color: "#f43f5e", px: 0.52, py: 0.55, radius: 120 },
+            { name: "The Right-Thumb Drift", color: "#10b981", px: 0.80, py: 0.70, radius: 80 }
         ];
 
         function resizeCanvas() {
@@ -173,139 +63,97 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        app.addEventListener('click', (e) => {
-            if (hasTapped) return;
-            hasTapped = true;
-            processTap(e.clientX, e.clientY);
-        });
+        app.addEventListener('click', (e) => { if (!hasTapped) { hasTapped = true; processTap(e.clientX, e.clientY); }});
+        app.addEventListener('touchstart', (e) => { if (!hasTapped) { hasTapped = true; processTap(e.touches[0].clientX, e.touches[0].clientY); }});
 
-        app.addEventListener('touchstart', (e) => {
-            if (hasTapped) return;
-            hasTapped = true;
-            processTap(e.touches[0].clientX, e.touches[0].clientY);
-        });
+        async function processTap(x, y) {
+            document.getElementById('instruction').style.opacity = '0';
+            
+            // 1. Convert tap to percentage
+            const xPercent = x / cw;
+            const yPercent = y / ch;
 
-        function processTap(x, y) {
-            instruction.style.opacity = '0';
-            drawBackgroundNoise();
+            // 2. SEND to Supabase instantly (Save the Tap)
+            await supabase.from('global_taps').insert([{ x_percent: xPercent, y_percent: yPercent }]);
+
+            // 3. FETCH the world's taps from Supabase (Read the Taps)
+            const { data: globalTaps } = await supabase
+                .from('global_taps')
+                .select('x_percent, y_percent')
+                .limit(2000)
+                .order('created_at', { ascending: false });
+
+            // 4. Draw everything
+            if (globalTaps) drawRealHeatmap(globalTaps);
             drawClusters();
             
-            // Check if the user fell into a common psychological trap
             let trappedIn = checkCluster(x, y);
-            
             drawUserTap(x, y, trappedIn ? trappedIn.color : '#38bdf8');
             canvas.style.opacity = '1';
             
             calculateResults(x, y, trappedIn);
         }
 
-        // Draw normal global taps (faint blue dots)
-        function drawBackgroundNoise() {
-            for (let i = 0; i < 1500; i++) {
-                let rx = cw * 0.5 + (randomGaussian() * cw * 0.25) + (cw * 0.05);
-                let ry = ch * 0.5 + (randomGaussian() * ch * 0.25) + (ch * 0.05);
-                
+        // Draw the real data from the database
+        function drawRealHeatmap(taps) {
+            taps.forEach(tap => {
+                let rx = tap.x_percent * cw;
+                let ry = tap.y_percent * ch;
                 ctx.beginPath();
                 ctx.arc(rx, ry, 2, 0, Math.PI * 2);
-                ctx.fillStyle = 'rgba(56, 189, 248, 0.08)';
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.15)'; // Slightly brighter real dots
                 ctx.fill();
-            }
+            });
         }
 
-        // Draw the massive psychological gravity wells
         function drawClusters() {
             dominantClusters.forEach(cluster => {
-                let sx = cluster.px * cw;
-                let sy = cluster.py * ch;
-
-                // Aura (Glow)
+                let sx = cluster.px * cw; let sy = cluster.py * ch;
                 let gradient = ctx.createRadialGradient(sx, sy, 0, sx, sy, cluster.radius);
-                gradient.addColorStop(0, cluster.color + '44'); // 44 is hex opacity
-                gradient.addColorStop(1, 'transparent');
-
-                ctx.beginPath();
-                ctx.arc(sx, sy, cluster.radius, 0, Math.PI * 2);
-                ctx.fillStyle = gradient;
-                ctx.fill();
-
-                // Core Node
-                ctx.beginPath();
-                ctx.arc(sx, sy, 5, 0, Math.PI * 2);
-                ctx.fillStyle = cluster.color;
-                ctx.fill();
+                gradient.addColorStop(0, cluster.color + '44'); gradient.addColorStop(1, 'transparent');
+                ctx.beginPath(); ctx.arc(sx, sy, cluster.radius, 0, Math.PI * 2); ctx.fillStyle = gradient; ctx.fill();
+                ctx.beginPath(); ctx.arc(sx, sy, 5, 0, Math.PI * 2); ctx.fillStyle = cluster.color; ctx.fill();
             });
         }
 
         function checkCluster(x, y) {
             for (let cluster of dominantClusters) {
-                let sx = cluster.px * cw;
-                let sy = cluster.py * ch;
-                let distance = Math.hypot(x - sx, y - sy);
-                
-                if (distance <= cluster.radius) {
-                    return cluster; // User tapped inside a major hotzone
-                }
+                let distance = Math.hypot(x - (cluster.px * cw), y - (cluster.py * ch));
+                if (distance <= cluster.radius) return cluster;
             }
-            return null; // User tapped somewhere unique
+            return null;
         }
 
         function drawUserTap(x, y, color) {
-            // Pulse ring
-            ctx.beginPath();
-            ctx.arc(x, y, 25, 0, Math.PI * 2);
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.stroke();
-
-            // Core dot
-            ctx.beginPath();
-            ctx.arc(x, y, 6, 0, Math.PI * 2);
-            ctx.fillStyle = color;
-            ctx.fill();
+            ctx.beginPath(); ctx.arc(x, y, 25, 0, Math.PI * 2); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+            ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
         }
 
         function calculateResults(x, y, trappedIn) {
-            const centerX = cw / 2;
-            const centerY = ch / 2;
-            
+            const centerX = cw / 2; const centerY = ch / 2;
             const distance = Math.hypot(x - centerX, y - centerY);
             const maxDistance = Math.hypot(centerX, centerY);
-            
             let predictability = 100 - ((distance / maxDistance) * 100);
-            // Math tweak to ensure natural-feeling results
             predictability = Math.min(99.9, Math.max(45, predictability + 30));
 
             setTimeout(() => {
-                results.style.display = 'block';
-                percentageSpan.innerText = predictability.toFixed(1);
+                document.getElementById('results').style.display = 'block';
+                document.getElementById('percentage').innerText = predictability.toFixed(1);
+                
+                const diagP = document.getElementById('diagnosis');
+                if (predictability > 85) diagP.innerText = "You share a clicking profile with the global majority today. Your brain seeks the center.";
+                else if (predictability > 60) diagP.innerText = "You drifted slightly off-center, letting your dominant hand dictate your choice.";
+                else diagP.innerText = "The Rebel. You actively tried to outsmart the test.";
 
-                if (predictability > 85) {
-                    diagnosisP.innerText = "You share a clicking profile with over 42,000 other subjects today. Your brain seeks the center.";
-                } else if (predictability > 60) {
-                    diagnosisP.innerText = "You drifted slightly off-center, letting your dominant hand dictate your 'random' choice.";
-                } else {
-                    diagnosisP.innerText = "The Rebel. You actively tried to outsmart the test. So did 2 million other subjects.";
-                }
-
-                // Handle Cluster Output
+                const banner = document.getElementById('cluster-banner');
                 if (trappedIn) {
-                    clusterBanner.style.color = trappedIn.color;
-                    clusterBanner.style.border = `1px solid ${trappedIn.color}`;
-                    clusterBanner.innerHTML = `⚠️ YOU FELL INTO A PREDICTABLE TRAP:<br><span style="font-size:1.2rem;">"${trappedIn.name}"</span>`;
+                    banner.style.color = trappedIn.color; banner.style.border = `1px solid ${trappedIn.color}`;
+                    banner.innerHTML = `⚠️ YOU FELL INTO A PREDICTABLE TRAP:<br><span style="font-size:1.2rem;">"${trappedIn.name}"</span>`;
                 } else {
-                    clusterBanner.style.color = '#38bdf8';
-                    clusterBanner.style.border = '1px solid #38bdf8';
-                    clusterBanner.innerText = "🌐 You avoided the major psychological hotzones.";
+                    banner.style.color = '#38bdf8'; banner.style.border = '1px solid #38bdf8';
+                    banner.innerText = "🌐 You avoided the major psychological hotzones.";
                 }
             }, 1200);
-        }
-
-        // Helper function for the background noise bell-curve
-        function randomGaussian() {
-            let u = 0, v = 0;
-            while(u === 0) u = Math.random();
-            while(v === 0) v = Math.random();
-            return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v) / 3.0;
         }
     </script>
 </body>
