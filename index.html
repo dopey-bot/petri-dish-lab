@@ -43,17 +43,16 @@
         const SUPABASE_ANON_KEY = 'sb_publishable_wpKaS7oeS9GUTO4xHhymDQ_fK-v-1fk';
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-       // --- 2. APP LOGIC & CANVAS SETUP ---
+       / --- 2. APP LOGIC & CANVAS SETUP ---
         const canvas = document.getElementById('heatmap');
         const ctx = canvas.getContext('2d');
         const app = document.getElementById('app');
         
+        // --- THE LIFESPAN SETTING ---
+        const LIFESPAN_MINUTES = 60; // Taps will completely disappear from the map after 60 minutes
+        
         let hasTapped = false;
         let cw, ch;
-        
-        // Animation variables
-        const TAP_LIFESPAN = 4000; // 4 seconds before the dots completely vanish
-        let activeTaps = [];
 
         function resizeCanvas() {
             cw = canvas.width = window.innerWidth;
@@ -62,59 +61,12 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // --- 3. THE ANIMATION ENGINE ---
-        function animateFrame() {
-            ctx.clearRect(0, 0, cw, ch);
-            let currentTime = performance.now();
-
-            activeTaps = activeTaps.filter(tap => {
-                let age = currentTime - tap.spawnTime;
-                if (age >= TAP_LIFESPAN) return false; // Remove dead taps
-
-                let lifeRatio = age / TAP_LIFESPAN;
-                let opacity = 1 - lifeRatio; 
-
-                ctx.globalAlpha = opacity;
-
-                if (tap.isUser) {
-                    // Draw the user's special pulse ring
-                    ctx.beginPath();
-                    // The ring expands slightly as it fades
-                    ctx.arc(tap.x, tap.y, 25 + (lifeRatio * 15), 0, Math.PI * 2); 
-                    ctx.strokeStyle = tap.color;
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-
-                    // Draw the user's core dot
-                    ctx.beginPath();
-                    ctx.arc(tap.x, tap.y, 6, 0, Math.PI * 2);
-                    ctx.fillStyle = tap.color;
-                    ctx.fill();
-                } else {
-                    // Draw standard global history dots
-                    ctx.beginPath();
-                    ctx.arc(tap.x, tap.y, 3, 0, Math.PI * 2);
-                    ctx.fillStyle = tap.color;
-                    ctx.fill();
-                }
-
-                return true; 
-            });
-
-            ctx.globalAlpha = 1.0; // Reset opacity
-            requestAnimationFrame(animateFrame);
-        }
-
-        // Start the animation loop immediately (it just draws an empty screen until they tap)
-        animateFrame(); 
-
-        // --- 4. INTERACTION HANDLING ---
+        // --- 3. INTERACTION HANDLING ---
         app.addEventListener('click', (e) => { if (!hasTapped) { hasTapped = true; processTap(e.clientX, e.clientY); }});
         app.addEventListener('touchstart', (e) => { if (!hasTapped) { hasTapped = true; processTap(e.touches[0].clientX, e.touches[0].clientY); }});
 
         async function processTap(x, y) {
             document.getElementById('instruction').style.opacity = '0';
-            canvas.style.opacity = '1'; // Ensure canvas is visible
             
             // 1. Convert tap to percentage
             const xPercent = x / cw;
@@ -123,37 +75,44 @@
             // 2. SEND to Supabase instantly
             await db.from('global_taps').insert([{ x_percent: xPercent, y_percent: yPercent }]);
 
-            // 3. Add the User's tap to the animation array
-            activeTaps.push({
-                x: x,
-                y: y,
-                color: '#38bdf8', // Bright blue for the user
-                isUser: true,
-                spawnTime: performance.now()
-            });
+            // 3. CALCULATE THE CUTOFF TIME
+            // We find the exact time it was X minutes ago, formatted for the database
+            const cutoffTime = new Date(Date.now() - (LIFESPAN_MINUTES * 60 * 1000)).toISOString();
 
-            // 4. FETCH the world's history from Supabase
-            const { data: globalTaps } = await db
+            // 4. FETCH ONLY "ALIVE" TAPS FROM SUPABASE
+            const { data: activeTaps } = await db
                 .from('global_taps')
                 .select('x_percent, y_percent')
-                .limit(1000) // Pull the last 1000 taps
-                .order('created_at', { ascending: false });
+                .gte('created_at', cutoffTime) // This tells Supabase to ignore old, dead taps
+                .limit(2000);
 
-            // 5. Add history to the animation array
-            if (globalTaps) {
-                let now = performance.now();
-                globalTaps.forEach(tap => {
-                    activeTaps.push({
-                        x: tap.x_percent * cw,
-                        y: tap.y_percent * ch,
-                        color: 'rgba(56, 189, 248, 0.4)', // Faint blue for history
-                        isUser: false,
-                        spawnTime: now // Start their fade countdown right now
-                    });
-                });
-            }
+            // 5. DRAW THE MAP
+            if (activeTaps) drawRealHeatmap(activeTaps);
+            
+            // Draw the user's tap
+            drawUserTap(x, y, '#38bdf8');
+            canvas.style.opacity = '1';
             
             calculateResults(x, y);
+        }
+
+        // --- 4. DRAW FUNCTIONS ---
+        function drawRealHeatmap(taps) {
+            taps.forEach(tap => {
+                let rx = tap.x_percent * cw;
+                let ry = tap.y_percent * ch;
+                ctx.beginPath();
+                ctx.arc(rx, ry, 3, 0, Math.PI * 2); 
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.4)'; // Solid, faint blue dots
+                ctx.fill();
+            });
+        }
+
+        function drawUserTap(x, y, color) {
+            // Pulse ring
+            ctx.beginPath(); ctx.arc(x, y, 25, 0, Math.PI * 2); ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+            // Core dot
+            ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill();
         }
 
         // --- 5. CALCULATIONS ---
@@ -176,8 +135,10 @@
                 const banner = document.getElementById('cluster-banner');
                 banner.style.color = '#38bdf8'; 
                 banner.style.border = '1px solid #38bdf8';
-                banner.innerText = "🌐 Your tap has been permanently added to the global lab.";
-            }, 1200); // UI pops up after 1.2 seconds, while the dots are still fading behind it!
+                
+                // Update text to reflect the rolling time window
+                banner.innerText = `🌐 Your tap will remain on the global map for the next ${LIFESPAN_MINUTES} minutes.`;
+            }, 800); 
         }
     </script>
 </body>
