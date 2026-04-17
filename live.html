@@ -19,11 +19,9 @@
         h1 { font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px; color: #f8fafc; }
         .live-status { display: flex; align-items: center; margin-top: 10px; font-size: 0.9rem; }
         
-        /* Blinking Red Dot */
         .dot { height: 10px; width: 10px; background-color: #f43f5e; border-radius: 50%; display: inline-block; margin-right: 10px; animation: blink 1s infinite; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
 
-        /* The Nuke Button */
         .nuke-btn {
             margin-top: 20px; width: 100%; background: rgba(244, 63, 94, 0.1); 
             color: #f43f5e; border: 1px solid #f43f5e; padding: 10px; 
@@ -46,125 +44,116 @@
 
     <script>
         // --- 1. INITIALIZE SUPABASE ---
-        // MAKE SURE YOU PASTE YOUR KEYS HERE!
         const SUPABASE_URL = 'https://zdsejflxtilybqdogcyq.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_wpKaS7oeS9GUTO4xHhymDQ_fK-v-1fk';
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // --- 2. CANVAS & ANIMATION SETUP ---
+        // --- 2. CANVAS SETUP ---
         const canvas = document.getElementById('live-canvas');
         const ctx = canvas.getContext('2d');
         let cw, ch;
         
-        const TAP_LIFESPAN = 3000; 
+        // This matches your main app!
+        const LIFESPAN_MINUTES = 60; 
         let activeTaps = []; 
 
         function resizeCanvas() {
             cw = canvas.width = window.innerWidth;
             ch = canvas.height = window.innerHeight;
+            redrawCanvas(); // Redraw if screen rotates
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // --- 3. THE ANIMATION ENGINE ---
-        function animateFrame() {
+        // --- 3. DRAW FUNCTION ---
+        function redrawCanvas() {
             ctx.clearRect(0, 0, cw, ch);
-            let currentTime = performance.now();
-
-            activeTaps = activeTaps.filter(tap => {
-                let age = currentTime - tap.spawnTime;
-                if (age >= TAP_LIFESPAN) return false;
-
-                let lifeRatio = age / TAP_LIFESPAN;
-                let opacity = 1 - lifeRatio; 
-
-                ctx.globalAlpha = opacity;
-
+            
+            activeTaps.forEach(tap => {
                 ctx.beginPath();
-                ctx.arc(tap.x, tap.y, tap.isNew ? 5 : 3, 0, Math.PI * 2);
-                ctx.fillStyle = tap.color;
+                ctx.arc(tap.x, tap.y, 3, 0, Math.PI * 2);
+                ctx.fillStyle = 'rgba(56, 189, 248, 0.6)'; // Solid, visible blue
                 ctx.fill();
-
-                if (tap.isNew) {
-                    ctx.beginPath();
-                    ctx.arc(tap.x, tap.y, 10 + (lifeRatio * 30), 0, Math.PI * 2);
-                    ctx.strokeStyle = tap.color;
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-                }
-                return true; 
             });
-
-            ctx.globalAlpha = 1.0; 
+            
             document.getElementById('tap-count').innerText = activeTaps.length;
-            requestAnimationFrame(animateFrame);
         }
 
-        // --- 4. FETCH INITIAL DATA ---
+        // --- 4. FETCH HISTORY ---
         async function loadHistory() {
+            const cutoffTime = new Date(Date.now() - (LIFESPAN_MINUTES * 60 * 1000)).toISOString();
+            
             const { data: globalTaps } = await db
                 .from('global_taps')
-                .select('x_percent, y_percent')
-                .limit(200) 
-                .order('created_at', { ascending: false });
+                .select('x_percent, y_percent, created_at')
+                .gte('created_at', cutoffTime)
+                .limit(3000);
 
             if (globalTaps) {
-                globalTaps.forEach(tap => {
-                    activeTaps.push({
-                        x: tap.x_percent * cw,
-                        y: tap.y_percent * ch,
-                        color: '#38bdf8', 
-                        isNew: false,
-                        spawnTime: performance.now() 
-                    });
-                });
+                // Map the data and save the actual database timestamp
+                activeTaps = globalTaps.map(tap => ({
+                    x: tap.x_percent * cw,
+                    y: tap.y_percent * ch,
+                    timestamp: new Date(tap.created_at).getTime()
+                }));
+                redrawCanvas();
             }
         }
 
-        // --- 5. LISTEN FOR LIVE TAPS ---
+        // --- 5. LIVE FEED ---
         function startLiveFeed() {
             db.channel('custom-insert-channel')
             .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'global_taps' }, (payload) => {
                 const newTap = payload.new;
+                
+                // Instantly add the new tap to the screen
                 activeTaps.push({
                     x: newTap.x_percent * cw,
                     y: newTap.y_percent * ch,
-                    color: '#f43f5e', 
-                    isNew: true,
-                    spawnTime: performance.now() 
+                    timestamp: new Date(newTap.created_at).getTime()
                 });
+                redrawCanvas();
             })
             .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'global_taps' }, (payload) => {
-                // If a delete command comes through the live feed, clear the screen immediately!
+                // Instantly clear the screen if someone clicks Purge
                 activeTaps = [];
-                ctx.clearRect(0, 0, cw, ch);
+                redrawCanvas();
             })
             .subscribe();
         }
 
-        // --- 6. THE PURGE FUNCTION ---
+        // --- 6. BACKGROUND PRUNING ---
+        // Every 60 seconds, this silently checks if any dots have outlived their lifespan and removes them
+        setInterval(() => {
+            const cutoff = Date.now() - (LIFESPAN_MINUTES * 60 * 1000);
+            const originalLength = activeTaps.length;
+            
+            activeTaps = activeTaps.filter(tap => tap.timestamp >= cutoff);
+            
+            // Only redraw if we actually deleted an expired dot
+            if (activeTaps.length !== originalLength) {
+                redrawCanvas();
+            }
+        }, 60000); 
+
+        // --- 7. PURGE FUNCTION ---
         async function purgeDatabase() {
-            // Confirm before deleting so you don't click it by accident
             const confirmPurge = confirm("🚨 Are you absolutely sure? This will permanently delete ALL taps from the global database.");
             
             if (confirmPurge) {
-                // In Supabase, to delete all rows we just tell it to delete where the ID is greater than 0
                 const { error } = await db.from('global_taps').delete().gte('id', 0);
                 
                 if (error) {
                     alert("Error wiping database: " + error.message);
                 } else {
-                    // Manually clear the array on our screen just in case the websocket misses the delete event
                     activeTaps = [];
-                    ctx.clearRect(0, 0, cw, ch);
-                    document.getElementById('tap-count').innerText = "0";
+                    redrawCanvas();
                     console.log("Database purged successfully.");
                 }
             }
         }
 
-        // --- 7. BOOT IT UP ---
-        animateFrame(); 
+        // BOOT IT UP
         loadHistory();  
         startLiveFeed(); 
     </script>
