@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Global Monitor | The Lab</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, sans-serif; overflow: hidden; }
+        body { background-color: #05080f; color: #38bdf8; } /* Even darker for the monitor */
+        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
+        
+        #dashboard {
+            position: absolute; top: 20px; left: 20px; z-index: 10;
+            background: rgba(11, 15, 25, 0.8); padding: 20px;
+            border: 1px solid #1e293b; border-radius: 12px; backdrop-filter: blur(10px);
+        }
+        h1 { font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px; color: #f8fafc; }
+        .live-status { display: flex; align-items: center; margin-top: 10px; font-size: 0.9rem; }
+        
+        /* Blinking Red Dot */
+        .dot { height: 10px; width: 10px; background-color: #f43f5e; border-radius: 50%; display: inline-block; margin-right: 10px; animation: blink 1s infinite; }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div id="dashboard">
+        <h1>Global Heatmap</h1>
+        <div class="live-status"><span class="dot"></span> LIVE FEED ACTIVE</div>
+        <div style="margin-top: 10px; color: #94a3b8; font-size: 0.8rem;">Total Taps Displayed: <span id="tap-count">0</span></div>
+    </div>
+
+    <canvas id="live-canvas"></canvas>
+
+    <script>
+        // --- 1. INITIALIZE SUPABASE ---
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL_HERE';
+        const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY_HERE';
+        const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        // --- 2. CANVAS SETUP ---
+        const canvas = document.getElementById('live-canvas');
+        const ctx = canvas.getContext('2d');
+        let cw, ch;
+        let tapCount = 0;
+
+        function resizeCanvas() {
+            cw = canvas.width = window.innerWidth;
+            ch = canvas.height = window.innerHeight;
+            // When resizing, we'd ideally redraw everything, but for this MVP we'll just let it build
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // --- 3. FETCH EXISTING DATA (The History) ---
+        async function loadHistory() {
+            const { data: globalTaps } = await db
+                .from('global_taps')
+                .select('x_percent, y_percent')
+                .limit(3000)
+                .order('created_at', { ascending: false });
+
+            if (globalTaps) {
+                globalTaps.forEach(tap => drawTap(tap.x_percent, tap.y_percent, 'rgba(56, 189, 248, 0.2)')); // Faint blue for old taps
+                tapCount = globalTaps.length;
+                document.getElementById('tap-count').innerText = tapCount;
+            }
+        }
+
+        // --- 4. LISTEN FOR LIVE TAPS (The Magic) ---
+        function startLiveFeed() {
+            db.channel('custom-insert-channel')
+            .on(
+                'postgres_changes',
+                { event: 'INSERT', schema: 'public', table: 'global_taps' },
+                (payload) => {
+                    // A new tap just happened somewhere in the world!
+                    const newTap = payload.new;
+                    
+                    // Draw it bright neon pink so it pops on the screen
+                    drawTap(newTap.x_percent, newTap.y_percent, '#f43f5e', true);
+                    
+                    tapCount++;
+                    document.getElementById('tap-count').innerText = tapCount;
+                }
+            )
+            .subscribe();
+        }
+
+        // --- 5. DRAW FUNCTION ---
+        function drawTap(xPercent, yPercent, color, isNew = false) {
+            let rx = xPercent * cw;
+            let ry = yPercent * ch;
+
+            ctx.beginPath();
+            ctx.arc(rx, ry, isNew ? 5 : 2, 0, Math.PI * 2); // Make live taps bigger
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            // Add a radar ripple effect for live taps
+            if (isNew) {
+                ctx.beginPath();
+                ctx.arc(rx, ry, 15, 0, Math.PI * 2);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+        }
+
+        // Boot it up
+        loadHistory();
+        startLiveFeed();
+    </script>
+</body>
+</html>
