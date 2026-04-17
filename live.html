@@ -7,13 +7,14 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, sans-serif; overflow: hidden; }
-        body { background-color: #05080f; color: #38bdf8; } /* Even darker for the monitor */
+        body { background-color: #05080f; color: #38bdf8; } 
         canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
         
         #dashboard {
             position: absolute; top: 20px; left: 20px; z-index: 10;
             background: rgba(11, 15, 25, 0.8); padding: 20px;
             border: 1px solid #1e293b; border-radius: 12px; backdrop-filter: blur(10px);
+            min-width: 250px;
         }
         h1 { font-size: 1.2rem; text-transform: uppercase; letter-spacing: 2px; color: #f8fafc; }
         .live-status { display: flex; align-items: center; margin-top: 10px; font-size: 0.9rem; }
@@ -21,6 +22,14 @@
         /* Blinking Red Dot */
         .dot { height: 10px; width: 10px; background-color: #f43f5e; border-radius: 50%; display: inline-block; margin-right: 10px; animation: blink 1s infinite; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.2; } 100% { opacity: 1; } }
+
+        /* The Nuke Button */
+        .nuke-btn {
+            margin-top: 20px; width: 100%; background: rgba(244, 63, 94, 0.1); 
+            color: #f43f5e; border: 1px solid #f43f5e; padding: 10px; 
+            font-weight: bold; border-radius: 6px; cursor: pointer; transition: all 0.2s;
+        }
+        .nuke-btn:hover { background: #f43f5e; color: white; box-shadow: 0 0 15px rgba(244,63,94,0.5); }
     </style>
 </head>
 <body>
@@ -28,90 +37,136 @@
     <div id="dashboard">
         <h1>Global Heatmap</h1>
         <div class="live-status"><span class="dot"></span> LIVE FEED ACTIVE</div>
-        <div style="margin-top: 10px; color: #94a3b8; font-size: 0.8rem;">Total Taps Displayed: <span id="tap-count">0</span></div>
+        <div style="margin-top: 10px; color: #94a3b8; font-size: 0.8rem;">Active Taps: <span id="tap-count">0</span></div>
+        
+        <button class="nuke-btn" onclick="purgeDatabase()">⚠️ PURGE DATABASE</button>
     </div>
 
     <canvas id="live-canvas"></canvas>
 
-
     <script>
         // --- 1. INITIALIZE SUPABASE ---
+        // MAKE SURE YOU PASTE YOUR KEYS HERE!
         const SUPABASE_URL = 'https://zdsejflxtilybqdogcyq.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_wpKaS7oeS9GUTO4xHhymDQ_fK-v-1fk';
         const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        // --- 2. CANVAS SETUP ---
+        // --- 2. CANVAS & ANIMATION SETUP ---
         const canvas = document.getElementById('live-canvas');
         const ctx = canvas.getContext('2d');
         let cw, ch;
-        let tapCount = 0;
+        
+        const TAP_LIFESPAN = 3000; 
+        let activeTaps = []; 
 
         function resizeCanvas() {
             cw = canvas.width = window.innerWidth;
             ch = canvas.height = window.innerHeight;
-            // When resizing, we'd ideally redraw everything, but for this MVP we'll just let it build
         }
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // --- 3. FETCH EXISTING DATA (The History) ---
+        // --- 3. THE ANIMATION ENGINE ---
+        function animateFrame() {
+            ctx.clearRect(0, 0, cw, ch);
+            let currentTime = performance.now();
+
+            activeTaps = activeTaps.filter(tap => {
+                let age = currentTime - tap.spawnTime;
+                if (age >= TAP_LIFESPAN) return false;
+
+                let lifeRatio = age / TAP_LIFESPAN;
+                let opacity = 1 - lifeRatio; 
+
+                ctx.globalAlpha = opacity;
+
+                ctx.beginPath();
+                ctx.arc(tap.x, tap.y, tap.isNew ? 5 : 3, 0, Math.PI * 2);
+                ctx.fillStyle = tap.color;
+                ctx.fill();
+
+                if (tap.isNew) {
+                    ctx.beginPath();
+                    ctx.arc(tap.x, tap.y, 10 + (lifeRatio * 30), 0, Math.PI * 2);
+                    ctx.strokeStyle = tap.color;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+                return true; 
+            });
+
+            ctx.globalAlpha = 1.0; 
+            document.getElementById('tap-count').innerText = activeTaps.length;
+            requestAnimationFrame(animateFrame);
+        }
+
+        // --- 4. FETCH INITIAL DATA ---
         async function loadHistory() {
             const { data: globalTaps } = await db
                 .from('global_taps')
                 .select('x_percent, y_percent')
-                .limit(3000)
+                .limit(200) 
                 .order('created_at', { ascending: false });
 
             if (globalTaps) {
-                globalTaps.forEach(tap => drawTap(tap.x_percent, tap.y_percent, 'rgba(56, 189, 248, 0.2)')); // Faint blue for old taps
-                tapCount = globalTaps.length;
-                document.getElementById('tap-count').innerText = tapCount;
+                globalTaps.forEach(tap => {
+                    activeTaps.push({
+                        x: tap.x_percent * cw,
+                        y: tap.y_percent * ch,
+                        color: '#38bdf8', 
+                        isNew: false,
+                        spawnTime: performance.now() 
+                    });
+                });
             }
         }
 
-        // --- 4. LISTEN FOR LIVE TAPS (The Magic) ---
+        // --- 5. LISTEN FOR LIVE TAPS ---
         function startLiveFeed() {
             db.channel('custom-insert-channel')
-            .on(
-                'postgres_changes',
-                { event: 'INSERT', schema: 'public', table: 'global_taps' },
-                (payload) => {
-                    // A new tap just happened somewhere in the world!
-                    const newTap = payload.new;
-                    
-                    // Draw it bright neon pink so it pops on the screen
-                    drawTap(newTap.x_percent, newTap.y_percent, '#f43f5e', true);
-                    
-                    tapCount++;
-                    document.getElementById('tap-count').innerText = tapCount;
-                }
-            )
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'global_taps' }, (payload) => {
+                const newTap = payload.new;
+                activeTaps.push({
+                    x: newTap.x_percent * cw,
+                    y: newTap.y_percent * ch,
+                    color: '#f43f5e', 
+                    isNew: true,
+                    spawnTime: performance.now() 
+                });
+            })
+            .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'global_taps' }, (payload) => {
+                // If a delete command comes through the live feed, clear the screen immediately!
+                activeTaps = [];
+                ctx.clearRect(0, 0, cw, ch);
+            })
             .subscribe();
         }
 
-        // --- 5. DRAW FUNCTION ---
-        function drawTap(xPercent, yPercent, color, isNew = false) {
-            let rx = xPercent * cw;
-            let ry = yPercent * ch;
-
-            ctx.beginPath();
-            ctx.arc(rx, ry, isNew ? 5 : 2, 0, Math.PI * 2); // Make live taps bigger
-            ctx.fillStyle = color;
-            ctx.fill();
-
-            // Add a radar ripple effect for live taps
-            if (isNew) {
-                ctx.beginPath();
-                ctx.arc(rx, ry, 15, 0, Math.PI * 2);
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 1;
-                ctx.stroke();
+        // --- 6. THE PURGE FUNCTION ---
+        async function purgeDatabase() {
+            // Confirm before deleting so you don't click it by accident
+            const confirmPurge = confirm("🚨 Are you absolutely sure? This will permanently delete ALL taps from the global database.");
+            
+            if (confirmPurge) {
+                // In Supabase, to delete all rows we just tell it to delete where the ID is greater than 0
+                const { error } = await db.from('global_taps').delete().gte('id', 0);
+                
+                if (error) {
+                    alert("Error wiping database: " + error.message);
+                } else {
+                    // Manually clear the array on our screen just in case the websocket misses the delete event
+                    activeTaps = [];
+                    ctx.clearRect(0, 0, cw, ch);
+                    document.getElementById('tap-count').innerText = "0";
+                    console.log("Database purged successfully.");
+                }
             }
         }
 
-        // Boot it up
-        loadHistory();
-        startLiveFeed();
+        // --- 7. BOOT IT UP ---
+        animateFrame(); 
+        loadHistory();  
+        startLiveFeed(); 
     </script>
 </body>
 </html>
